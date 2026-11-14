@@ -148,6 +148,90 @@
   });
   apply(initialLang());
 
+  // Dot-matrix tile: a slow wave across a dot grid, with the initials picked out in denser dots.
+  function initDots() {
+    var c = document.getElementById("dots");
+    if (!c || !c.getContext) return;
+    var ctx = c.getContext("2d");
+    var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var GAP = 12, w = 0, h = 0, cols = 0, rows = 0, mask = null;
+    var pointer = { x: -999, y: -999 };
+    var visible = true, raf = 0;
+
+    function buildMask() {
+      var off = document.createElement("canvas");
+      off.width = cols; off.height = rows;
+      var o = off.getContext("2d");
+      o.fillStyle = "#000";
+      o.textAlign = "center";
+      o.textBaseline = "middle";
+      o.font = "500 " + Math.round(rows * 0.62) + "px 'Funnel Sans', Arial, sans-serif";
+      o.fillText("PJ", cols / 2, rows / 2 + rows * 0.03);
+      var d = o.getImageData(0, 0, cols, rows).data;
+      mask = new Float32Array(cols * rows);
+      for (var i = 0; i < mask.length; i++) mask[i] = d[i * 4 + 3] / 255;
+    }
+
+    function resize() {
+      var r = c.getBoundingClientRect();
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      w = r.width; h = r.height;
+      GAP = w < 480 ? 9 : 12;
+      c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cols = Math.floor(w / GAP); rows = Math.floor(h / GAP);
+      buildMask();
+    }
+
+    function draw(t) {
+      var css = getComputedStyle(document.documentElement);
+      var ink = css.getPropertyValue("--ink").trim() || "#1a1a1a";
+      var live = css.getPropertyValue("--live").trim() || "#2f9e62";
+      ctx.clearRect(0, 0, w, h);
+      var ox = (w - cols * GAP) / 2 + GAP / 2, oy = (h - rows * GAP) / 2 + GAP / 2;
+      for (var y = 0; y < rows; y++) {
+        for (var x = 0; x < cols; x++) {
+          var px = ox + x * GAP, py = oy + y * GAP;
+          var m = mask[y * cols + x];
+          var wave = 0.5 + 0.5 * Math.sin(px * 0.016 + py * 0.01 - t * 0.0005) * Math.cos(py * 0.018 - t * 0.00035);
+          var dx = px - pointer.x, dy = py - pointer.y;
+          var near = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / 110);
+          var r = 0.55 + wave * 0.9 + m * 2.1 + near * 1.4;
+          ctx.globalAlpha = Math.min(1, 0.12 + wave * 0.22 + m * 0.62 + near * 0.3);
+          ctx.fillStyle = ink;
+          ctx.beginPath(); ctx.arc(px, py, r, 0, 6.2832); ctx.fill();
+        }
+      }
+      // one live signal in the corner
+      var pulse = still ? 1 : 0.6 + 0.4 * Math.sin(t * 0.003);
+      ctx.globalAlpha = 1; ctx.fillStyle = live;
+      ctx.beginPath(); ctx.arc(ox + (cols - 2) * GAP, oy + GAP, 2.6 + pulse, 0, 6.2832); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    function loop(t) {
+      draw(t);
+      if (!still && visible) raf = requestAnimationFrame(loop);
+    }
+    function start() { cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
+
+    c.parentElement.addEventListener("pointermove", function (e) {
+      var r = c.getBoundingClientRect();
+      pointer.x = e.clientX - r.left; pointer.y = e.clientY - r.top;
+      if (still) draw(0);
+    });
+    c.parentElement.addEventListener("pointerleave", function () { pointer.x = pointer.y = -999; if (still) draw(0); });
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(function (es) {
+        visible = es[0].isIntersecting;
+        if (visible && !still) start();
+      }).observe(c);
+    }
+    window.addEventListener("resize", function () { resize(); draw(performance.now()); });
+    var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+    ready.then(function () { resize(); draw(0); if (!still) start(); });
+  }
+
   var btn = document.getElementById("copy-email");
   var email = document.getElementById("email");
   var state = document.getElementById("copy-state");
@@ -159,6 +243,8 @@
     s.addRange(r);
     state.textContent = dict[current]._select;
   }
+  initDots();
+
   btn.addEventListener("click", function () {
     var text = email.textContent.trim();
     if (navigator.clipboard && navigator.clipboard.writeText) {

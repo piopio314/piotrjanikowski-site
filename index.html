@@ -21,7 +21,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,400;0,500;1,400&family=Geist+Mono:wght@400&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Funnel+Sans:wght@400;500&family=Geist+Mono:wght@400&display=swap">
   <link rel="stylesheet" href="styles.css">
   <script type="application/ld+json">
   {
@@ -54,9 +54,12 @@
 
 <div class="page">
   <header class="top">
-    <div>
-      <p class="name">Piotr Janikowski</p>
-      <p class="role" data-i18n="role">Independent software developer</p>
+    <div class="id">
+      <span class="mark" aria-hidden="true">PJ</span>
+      <div>
+        <p class="name">Piotr Janikowski</p>
+        <p class="role" data-i18n="role">Independent software developer</p>
+      </div>
     </div>
     <div class="lang" role="group" aria-label="Language">
       <button type="button" id="lang-en" data-lang="en" aria-pressed="true">EN</button>
@@ -66,22 +69,31 @@
   </header>
 
   <main>
-    <section class="intro">
-      <p data-i18n="intro.1">I build and run software products end to end: AI agents, data automation and trading tools. Three of them are live and in use today.</p>
-      <p data-i18n="intro.2">I work with companies on contract and partner with founders on new products.</p>
-      <p class="availability"><span class="dot" aria-hidden="true"></span><span data-i18n="avail">Open to new projects · Spain, CET</span><span class="sep" aria-hidden="true">·</span><a href="#contact" data-i18n="avail.cta">Get in touch</a></p>
+    <section class="hero">
+      <div class="hero-text">
+        <p class="lead" data-i18n="intro.1">I build and run software products end to end: AI agents, data automation and trading tools. Three of them are live and in use today.</p>
+        <p data-i18n="intro.2">I work with companies on contract and partner with founders on new products.</p>
+        <p class="availability"><span class="dot" aria-hidden="true"></span><span data-i18n="avail">Open to new projects · Spain, CET</span><a href="#contact" data-i18n="avail.cta">Get in touch</a></p>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <canvas id="dots"></canvas>
+      </div>
     </section>
 
     <section aria-labelledby="h-products">
       <h2 id="h-products" data-i18n="h.products">Products</h2>
-      <ul class="items">
+      <div class="gallery">
 
-        <li class="item">
-          <div class="item-head">
-            <a class="item-title" href="https://cellify.app" target="_blank" rel="noopener">Cellify<span class="arrow" aria-hidden="true">↗</span></a>
-            <span class="meta">2025</span>
+        <article class="product wide">
+          <a class="tile tint-green" href="https://cellify.app" target="_blank" rel="noopener" aria-label="cellify.app">
+            <img src="assets/img/site-cellify.webp" width="1600" height="812" alt="The cellify.app website: Tell Excel what you need. Cellify does it.">
+          </a>
+          <div class="product-meta">
+            <img class="icon" src="assets/img/icon-cellify.png" width="48" height="48" alt="">
+            <a class="product-name" href="https://cellify.app" target="_blank" rel="noopener">Cellify<span class="arrow" aria-hidden="true">↗</span></a>
+            <span class="year">2025</span>
           </div>
-          <p class="item-line" data-i18n="cellify.line">AI agent for Microsoft Excel. Subscription software with paying users.</p>
+          <p class="product-line" data-i18n="cellify.line">AI agent for Microsoft Excel. Subscription software with paying users.</p>
           <details>
             <summary data-i18n="case">Case study</summary>
             <div class="case">
@@ -94,18 +106,21 @@
               </dl>
             </div>
           </details>
-        </li>
+        </article>
 
-        <li class="item">
-          <div class="item-head">
-            <a class="item-title" href="https://aibootroom.com" target="_blank" rel="noopener">AI Boot Room<span class="arrow" aria-hidden="true">↗</span></a>
-            <span class="meta">2026</span>
+        <article class="product">
+          <a class="tile tint-amber" href="https://aibootroom.com" target="_blank" rel="noopener" aria-label="aibootroom.com">
+            <img src="assets/img/site-aibootroom.webp" width="1200" height="701" loading="lazy" alt="The aibootroom.com website: One model. Our picks are out a day before kick-off.">
+          </a>
+          <div class="product-meta">
+            <img class="icon" src="assets/img/icon-aibootroom.png" width="48" height="48" alt="">
+            <a class="product-name" href="https://aibootroom.com" target="_blank" rel="noopener">AI Boot Room<span class="arrow" aria-hidden="true">↗</span></a>
+            <span class="year">2026</span>
           </div>
-          <p class="item-line" data-i18n="abr.line">Football analytics that publishes itself: website, X and a daily YouTube video.</p>
+          <p class="product-line" data-i18n="abr.line">Football analytics that publishes itself: website, X and a daily YouTube video.</p>
           <details>
             <summary data-i18n="case">Case study</summary>
             <div class="case">
-              <figure class="shot"><img src="assets/img/aibootroom-banner.webp" width="1400" height="467" loading="lazy" alt="AI Boot Room: football analysis with receipts."></figure>
               <dl>
                 <div><dt data-i18n="c.problem">Problem</dt><dd data-i18n="abr.problem">Football predictions online are rarely verifiable. Calls get edited and losses disappear.</dd></div>
                 <div><dt data-i18n="c.built">Built</dt><dd data-i18n="abr.built">An hourly data pipeline across 18 leagues, a statistical model backtested over 14 seasons, and automatic publishing of the website, X posts and a daily video rendered from code.</dd></div>
@@ -115,14 +130,18 @@
               <p class="fine" data-i18n="abr.note">18+ · Analysis, not betting advice · jugarbien.es</p>
             </div>
           </details>
-        </li>
+        </article>
 
-        <li class="item">
-          <div class="item-head">
-            <a class="item-title" href="https://sizeplan.com" target="_blank" rel="noopener">SizePlan<span class="arrow" aria-hidden="true">↗</span></a>
-            <span class="meta">2026</span>
+        <article class="product">
+          <a class="tile tint-cyan" href="https://sizeplan.com" target="_blank" rel="noopener" aria-label="sizeplan.com">
+            <img src="assets/img/site-sizeplan.webp" width="1200" height="1014" loading="lazy" alt="The sizeplan.com website: Your stop decides the lot size, with the SizePlan panel.">
+          </a>
+          <div class="product-meta">
+            <img class="icon" src="assets/img/icon-sizeplan.png" width="48" height="48" alt="">
+            <a class="product-name" href="https://sizeplan.com" target="_blank" rel="noopener">SizePlan<span class="arrow" aria-hidden="true">↗</span></a>
+            <span class="year">2026</span>
           </div>
-          <p class="item-line" data-i18n="sp.line">Risk and position-size planner for MetaTrader 5, sold on the MQL5 Market.</p>
+          <p class="product-line" data-i18n="sp.line">Risk and position-size planner for MetaTrader 5, sold on the MQL5 Market.</p>
           <details>
             <summary data-i18n="case">Case study</summary>
             <div class="case">
@@ -135,39 +154,43 @@
               </dl>
             </div>
           </details>
-        </li>
+        </article>
 
-      </ul>
+      </div>
     </section>
 
-    <section aria-labelledby="h-services">
-      <h2 id="h-services" data-i18n="h.services">What I build</h2>
-      <ul class="items compact">
-        <li><span data-i18n="s.1t">AI agents and assistants</span><span data-i18n="s.1b">Inside your product, with safety checks and measured quality.</span></li>
-        <li><span data-i18n="s.2t">Excel and Office add-ins</span><span data-i18n="s.2b">Automation in the tools your team already uses.</span></li>
-        <li><span data-i18n="s.3t">Data pipelines and automation</span><span data-i18n="s.3b">Scheduled collection, reporting and internal tools.</span></li>
-        <li><span data-i18n="s.4t">Automated video and content</span><span data-i18n="s.4b">Video rendered from data, voice-over and publishing.</span></li>
-        <li><span data-i18n="s.5t">MetaTrader tools</span><span data-i18n="s.5b">MQL5 and MQL4 panels, indicators and utilities.</span></li>
-        <li><span data-i18n="s.6t">MVPs</span><span data-i18n="s.6b">From idea to launch, with accounts and payments.</span></li>
-      </ul>
-    </section>
+    <div class="two">
+      <section aria-labelledby="h-services">
+        <h2 id="h-services" data-i18n="h.services">What I build</h2>
+        <ul class="rows">
+          <li><span data-i18n="s.1t">AI agents and assistants</span><span data-i18n="s.1b">Inside your product, with safety checks and measured quality.</span></li>
+          <li><span data-i18n="s.2t">Excel and Office add-ins</span><span data-i18n="s.2b">Automation in the tools your team already uses.</span></li>
+          <li><span data-i18n="s.3t">Data pipelines and automation</span><span data-i18n="s.3b">Scheduled collection, reporting and internal tools.</span></li>
+          <li><span data-i18n="s.4t">Automated video and content</span><span data-i18n="s.4b">Video rendered from data, voice-over and publishing.</span></li>
+          <li><span data-i18n="s.5t">MetaTrader tools</span><span data-i18n="s.5b">MQL5 and MQL4 panels, indicators and utilities.</span></li>
+          <li><span data-i18n="s.6t">MVPs</span><span data-i18n="s.6b">From idea to launch, with accounts and payments.</span></li>
+        </ul>
+      </section>
 
-    <section aria-labelledby="h-work">
-      <h2 id="h-work" data-i18n="h.work">Working together</h2>
-      <ul class="items compact">
-        <li><span data-i18n="w.1t">Contract</span><span data-i18n="w.1b">Remote, on your team or on a defined part of your product.</span></li>
-        <li><span data-i18n="w.2t">Fixed-scope project</span><span data-i18n="w.2b">Agreed result, price and deadline.</span></li>
-        <li><span data-i18n="w.3t">Product partnership</span><span data-i18n="w.3b">You bring the market, I build and run the product.</span></li>
-      </ul>
-      <p class="fine" data-i18n="w.note">Registered business in Spain, invoicing within the EU and worldwide. English, Spanish and Polish.</p>
-    </section>
+      <div class="stack">
+        <section aria-labelledby="h-work">
+          <h2 id="h-work" data-i18n="h.work">Working together</h2>
+          <ul class="rows">
+            <li><span data-i18n="w.1t">Contract</span><span data-i18n="w.1b">Remote, on your team or on a defined part of your product.</span></li>
+            <li><span data-i18n="w.2t">Fixed-scope project</span><span data-i18n="w.2b">Agreed result, price and deadline.</span></li>
+            <li><span data-i18n="w.3t">Product partnership</span><span data-i18n="w.3b">You bring the market, I build and run the product.</span></li>
+          </ul>
+          <p class="fine" data-i18n="w.note">Registered business in Spain, invoicing within the EU and worldwide. English, Spanish and Polish.</p>
+        </section>
 
-    <section aria-labelledby="h-now">
-      <h2 id="h-now" data-i18n="h.now">Now</h2>
-      <p data-i18n="now">Bringing Cellify to Microsoft AppSource and taking on new client projects.</p>
-    </section>
+        <section aria-labelledby="h-now">
+          <h2 id="h-now" data-i18n="h.now">Now</h2>
+          <p data-i18n="now">Bringing Cellify to Microsoft AppSource and taking on new client projects.</p>
+        </section>
+      </div>
+    </div>
 
-    <section id="contact" aria-labelledby="h-contact">
+    <section id="contact" class="contact" aria-labelledby="h-contact">
       <h2 id="h-contact" data-i18n="h.contact">Contact</h2>
       <p class="mail">
         <a id="email" href="mailto:piotr@piotrjanikowski.com">piotr@piotrjanikowski.com</a>
