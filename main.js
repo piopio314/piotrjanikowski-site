@@ -163,6 +163,10 @@
     var look = { x: 0, y: 0 }, lookTarget = { x: 0, y: 0 };
     var ripples = [];
     var visible = true, raf = 0;
+    // Pose switching: always show one sharp pose; on a change, dots flip from the
+    // old pose to the new one in a short sweep toward the turn direction.
+    var cur = { r: 1, c: 1 }, prev = { r: 1, c: 1 }, tSwitch = -1e9, RND = null;
+    var DUR = 280, HYST = 0.14;
 
     function isDark() {
       var t = document.documentElement.getAttribute("data-theme");
@@ -204,9 +208,17 @@
       cols = Math.floor(w / GAP); rows = Math.floor(h / GAP);
       ox = (w - cols * GAP) / 2 + GAP / 2; oy = (h - rows * GAP) / 2 + GAP / 2;
       buildPoses();
+      RND = new Float32Array(cols * rows);
+      for (var i = 0; i < RND.length; i++) RND[i] = Math.random();
     }
 
-    function ease(f) { return f * f * (3 - 2 * f); }
+    // Map a look value (-1..1) to a pose index (0..2) with hysteresis around the borders.
+    function axis(v, now) {
+      var g = v + 1;
+      if (now === 0) return g > 1.5 + HYST ? 2 : g > 0.5 + HYST ? 1 : 0;
+      if (now === 2) return g < 0.5 - HYST ? 0 : g < 1.5 - HYST ? 1 : 2;
+      return g < 0.5 - HYST ? 0 : g > 1.5 + HYST ? 2 : 1;
+    }
 
     function draw(t) {
       var css = getComputedStyle(document.documentElement);
@@ -218,19 +230,14 @@
       look.x += (lookTarget.x - look.x) * 0.09;
       look.y += (lookTarget.y - look.y) * 0.09;
 
-      // pick the four surrounding poses and their weights
-      var P = null;
-      if (poses) {
-        var gx = look.x + 1, gy = look.y + 1;
-        var c0 = Math.min(1, Math.floor(gx)), r0 = Math.min(1, Math.floor(gy));
-        var fx = ease(Math.min(1, Math.max(0, gx - c0))), fy = ease(Math.min(1, Math.max(0, gy - r0)));
-        P = [
-          [poses[r0][c0], (1 - fx) * (1 - fy)],
-          [poses[r0][c0 + 1], fx * (1 - fy)],
-          [poses[r0 + 1][c0], (1 - fx) * fy],
-          [poses[r0 + 1][c0 + 1], fx * fy]
-        ].filter(function (p) { return p[1] > 0.001; });
+      // choose the pose for where the pointer is; start a flip when it changes
+      var nc = axis(lookTarget.x, cur.c), nr = axis(lookTarget.y, cur.r);
+      if (nc !== cur.c || nr !== cur.r) {
+        prev = { r: cur.r, c: cur.c }; cur = { r: nr, c: nc }; tSwitch = t;
       }
+      var prog = still ? 1 : Math.min(1, Math.max(0, (t - tSwitch) / DUR));
+      var dc = cur.c - prev.c, dr = cur.r - prev.r, span = (dc ? 1 : 0) + (dr ? 1 : 0) || 1;
+      var NEW = poses ? poses[cur.r][cur.c] : null, OLD = poses ? poses[prev.r][prev.c] : null;
 
       ripples = ripples.filter(function (rp) { return t - rp.t0 < 2200; });
 
@@ -242,22 +249,28 @@
           var i = y * cols + x;
           var px = ox + x * GAP, py = oy + y * GAP;
 
-          var a = 0, L = 0;
-          if (P) {
-            var la = 0;
-            for (var p = 0; p < P.length; p++) {
-              var pa = P[p][0].A[i] * P[p][1];
-              a += pa; la += P[p][0].L[i] * pa;
+          var a = 0, L = 0, flip = 0;
+          if (NEW) {
+            var src = NEW;
+            if (prog < 1) {
+              // dots on the side the head turns toward flip first, with a little randomness
+              var u = x / cols, v = y / rows;
+              var sx = dc > 0 ? 1 - u : dc < 0 ? u : 0;
+              var sy = dr > 0 ? 1 - v : dr < 0 ? v : 0;
+              var s = ((sx + sy) / span) * 0.7 + RND[i] * 0.3;
+              if (prog < s) src = OLD;
+              var edge = Math.abs(prog - s);
+              if (edge < 0.08) flip = 1 - edge / 0.08;
             }
-            L = a > 0.001 ? la / a : 0;
-            a *= fade;
+            L = src.L[i];
+            a = src.A[i] * fade;
           }
 
           var wave = 0.5 + 0.5 * Math.sin(px * 0.016 + py * 0.01 - t * 0.0005) * Math.cos(py * 0.018 - t * 0.00035);
           var dx = px - pointer.x, dy = py - pointer.y;
           var near = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / 80);
 
-          var swell = 0, qx = px, qy = py;
+          var swell = flip * 0.35 * a, qx = px, qy = py;
           for (var k = 0; k < ripples.length; k++) {
             var rp = ripples[k], age = t - rp.t0;
             var rx = px - rp.x, ry = py - rp.y, d = Math.sqrt(rx * rx + ry * ry) || 1;
@@ -292,8 +305,8 @@
     function aim(clientX, clientY) {
       var rect = c.getBoundingClientRect();
       var cx = rect.left + rect.width / 2, cy = rect.top + rect.height * 0.38;
-      var nx = (clientX - cx) / Math.max(240, rect.width * 0.9);
-      var ny = (clientY - cy) / Math.max(200, rect.height * 0.9);
+      var nx = (clientX - cx) / Math.max(160, rect.width * 0.5);
+      var ny = (clientY - cy) / Math.max(140, rect.height * 0.5);
       lookTarget.x = Math.max(-1, Math.min(1, nx));
       lookTarget.y = Math.max(-1, Math.min(1, ny));
       pointer.x = clientX - rect.left; pointer.y = clientY - rect.top;
