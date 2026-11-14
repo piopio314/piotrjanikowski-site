@@ -149,40 +149,68 @@
   apply(initialLang());
 
   // Dot-matrix tile: a halftone portrait over a slowly moving dot field.
-  // The portrait comes from a small grayscale map with the background already cut out.
+  // The head turns toward the pointer (2.5D: an ellipsoid depth model with a nose bump
+  // shifts the sampled image more where the face is closer), and a click sends a ripple.
   function initDots() {
     var c = document.getElementById("dots");
     if (!c || !c.getContext) return;
     var ctx = c.getContext("2d");
     var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    var GAP = 8, w = 0, h = 0, cols = 0, rows = 0;
-    var lum = null, cover = null, face = null;
+    var GAP = 6, w = 0, h = 0, cols = 0, rows = 0, ox = 0, oy = 0;
+    var U = null, V = null, FADE = null;          // per-dot position in the portrait (0..1)
+    var src = null, SW = 0, SH = 0;               // face map: luminance + alpha
     var pointer = { x: -999, y: -999 };
+    var look = { x: 0, y: 0 }, lookTarget = { x: 0, y: 0 };
+    var ripples = [];
     var visible = true, raf = 0;
+
+    // Head geometry in portrait coordinates, measured from the face map.
+    var HEAD = { cu: 0.49, cv: 0.41, ru: 0.31, rv: 0.35 };
+    var NOSE = { u: 0.505, v: 0.55 };
+    var TURN = 0.075;                              // how far the nearest point travels
 
     function isDark() {
       var t = document.documentElement.getAttribute("data-theme");
       return t ? t === "dark" : darkQuery.matches;
     }
 
-    function buildMask() {
-      lum = new Float32Array(cols * rows);
-      cover = new Float32Array(cols * rows);
-      if (!face) return;
+    function loadSource(img) {
       var off = document.createElement("canvas");
-      off.width = cols; off.height = rows;
+      SW = off.width = img.width; SH = off.height = img.height;
       var o = off.getContext("2d");
-      var ph = rows * 1.04;                       // portrait height, bleeding off the bottom
-      var pw = ph * face.width / face.height;
-      o.drawImage(face, (cols - pw) / 2, rows * 0.04, pw, ph);
-      var d = o.getImageData(0, 0, cols, rows).data;
+      o.drawImage(img, 0, 0);
+      var d = o.getImageData(0, 0, SW, SH).data;
+      src = { L: new Float32Array(SW * SH), A: new Float32Array(SW * SH) };
+      for (var i = 0; i < SW * SH; i++) { src.L[i] = d[i * 4] / 255; src.A[i] = d[i * 4 + 3] / 255; }
+    }
+
+    function sample(arr, u, v) {
+      var x = u * (SW - 1), y = v * (SH - 1);
+      if (x < 0 || y < 0 || x > SW - 1 || y > SH - 1) return 0;
+      var x0 = x | 0, y0 = y | 0, x1 = Math.min(x0 + 1, SW - 1), y1 = Math.min(y0 + 1, SH - 1);
+      var fx = x - x0, fy = y - y0;
+      var a = arr[y0 * SW + x0], b = arr[y0 * SW + x1], c2 = arr[y1 * SW + x0], d = arr[y1 * SW + x1];
+      return (a * (1 - fx) + b * fx) * (1 - fy) + (c2 * (1 - fx) + d * fx) * fy;
+    }
+
+    function depth(u, v) {
+      var du = (u - HEAD.cu) / HEAD.ru, dv = (v - HEAD.cv) / HEAD.rv;
+      var z = 1 - du * du - dv * dv;
+      z = z > 0 ? Math.sqrt(z) : 0;
+      var nu = (u - NOSE.u) / 0.06, nv = (v - NOSE.v) / 0.1;
+      return z + 0.45 * Math.exp(-(nu * nu + nv * nv));
+    }
+
+    function layout() {
+      U = new Float32Array(cols * rows); V = new Float32Array(cols * rows); FADE = new Float32Array(rows);
+      var ph = rows * 1.04, pw = ph * (SW ? SW / SH : 0.67);
+      var left = (cols - pw) / 2, top = rows * 0.04;
       for (var y = 0; y < rows; y++) {
-        var fade = Math.min(1, Math.max(0, (rows * 0.98 - y) / (rows * 0.22))); // shoulders dissolve
+        FADE[y] = Math.min(1, Math.max(0, (rows * 0.98 - y) / (rows * 0.22)));
         for (var x = 0; x < cols; x++) {
-          var i = y * cols + x;
-          lum[i] = d[i * 4] / 255;
-          cover[i] = (d[i * 4 + 3] / 255) * fade;
+          U[y * cols + x] = (x + 0.5 - left) / pw;
+          V[y * cols + x] = (y + 0.5 - top) / ph;
         }
       }
     }
@@ -195,35 +223,65 @@
       c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       cols = Math.floor(w / GAP); rows = Math.floor(h / GAP);
-      buildMask();
+      ox = (w - cols * GAP) / 2 + GAP / 2; oy = (h - rows * GAP) / 2 + GAP / 2;
+      layout();
     }
 
     function draw(t) {
       var css = getComputedStyle(document.documentElement);
       var ink = css.getPropertyValue("--ink").trim() || "#1a1a1a";
       var live = css.getPropertyValue("--live").trim() || "#2f9e62";
-      ctx.clearRect(0, 0, w, h);
       var dark = isDark();
       var maxR = GAP * 0.5;
-      var ox = (w - cols * GAP) / 2 + GAP / 2, oy = (h - rows * GAP) / 2 + GAP / 2;
+
+      // ease the gaze toward the target
+      look.x += (lookTarget.x - look.x) * 0.08;
+      look.y += (lookTarget.y - look.y) * 0.08;
+      var sx = look.x * TURN, sy = look.y * TURN * 0.7;
+
+      // drop finished ripples
+      ripples = ripples.filter(function (rp) { return t - rp.t0 < 2200; });
+
+      ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = ink;
       for (var y = 0; y < rows; y++) {
+        var fade = FADE[y];
         for (var x = 0; x < cols; x++) {
           var i = y * cols + x;
           var px = ox + x * GAP, py = oy + y * GAP;
-          var a = cover[i];
+
+          // portrait sample, displaced by depth so the head turns toward the pointer
+          var a = 0, L = 0;
+          if (src) {
+            var u = U[i], v = V[i];
+            var z = depth(u, v);
+            var su = u - sx * z, sv = v - sy * z;
+            a = sample(src.A, su, sv) * fade;
+            if (a > 0.01) L = sample(src.L, su, sv);
+          }
+
           var wave = 0.5 + 0.5 * Math.sin(px * 0.016 + py * 0.01 - t * 0.0005) * Math.cos(py * 0.018 - t * 0.00035);
           var dx = px - pointer.x, dy = py - pointer.y;
-          var near = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / 90);
-          // light dots on dark grow with brightness; dark dots on light grow with shadow
-          var tone = dark ? 0.12 + 0.88 * Math.pow(lum[i], 1.6) : Math.pow(1 - lum[i], 1.15);
+          var near = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / 80);
+
+          // ripples: a ring that pushes dots outward and swells them as it passes
+          var push = 0, swell = 0, qx = px, qy = py;
+          for (var k = 0; k < ripples.length; k++) {
+            var rp = ripples[k], age = t - rp.t0;
+            var rx = px - rp.x, ry = py - rp.y, d = Math.sqrt(rx * rx + ry * ry) || 1;
+            var front = age * 0.32, band = (d - front) / 16;
+            var amp = Math.exp(-age / 700) * Math.exp(-band * band);
+            if (amp > 0.01) { push = amp * 7; swell += amp; qx += (rx / d) * push; qy += (ry / d) * push; }
+          }
+
+          var tone = dark ? 0.12 + 0.88 * Math.pow(L, 1.6) : Math.pow(1 - L, 1.15);
           var rFace = 0.3 + tone * maxR * (dark ? 0.88 : 0.96) + wave * 0.18;
           var rBg = 0.35 + wave * 0.55;
-          var r = rBg * (1 - a) + rFace * a + near * 0.9;
-          var alpha = (0.08 + wave * 0.16) * (1 - a) + 0.92 * a + near * 0.25;
+          var r = rBg * (1 - a) + rFace * a + near * 0.6 + swell * 1.6;
+          var alpha = (0.08 + wave * 0.16) * (1 - a) + 0.92 * a + near * 0.2 + swell * 0.5;
           if (r < 0.3) continue;
           ctx.globalAlpha = Math.min(1, alpha);
-          ctx.beginPath(); ctx.arc(px, py, r, 0, 6.2832); ctx.fill();
+          ctx.beginPath(); ctx.arc(qx, qy, r, 0, 6.2832); ctx.fill();
         }
       }
       // one live signal in the corner
@@ -239,12 +297,30 @@
     }
     function start() { cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
 
-    c.parentElement.addEventListener("pointermove", function (e) {
+    // Gaze follows the pointer anywhere on the page, measured from the tile's centre.
+    function aim(clientX, clientY) {
       var r = c.getBoundingClientRect();
-      pointer.x = e.clientX - r.left; pointer.y = e.clientY - r.top;
-      if (still) draw(0);
+      var cx = r.left + r.width / 2, cy = r.top + r.height * 0.42;
+      var nx = (clientX - cx) / (window.innerWidth * 0.5);
+      var ny = (clientY - cy) / (window.innerHeight * 0.5);
+      lookTarget.x = Math.max(-1, Math.min(1, nx * 1.3));
+      lookTarget.y = Math.max(-1, Math.min(1, ny * 1.3));
+      pointer.x = clientX - r.left; pointer.y = clientY - r.top;
+      if (still) { look.x = lookTarget.x; look.y = lookTarget.y; draw(0); }
+    }
+    window.addEventListener("pointermove", function (e) { aim(e.clientX, e.clientY); }, { passive: true });
+    document.documentElement.addEventListener("pointerleave", function () {
+      lookTarget.x = lookTarget.y = 0; pointer.x = pointer.y = -999;
+      if (still) { look.x = look.y = 0; draw(0); }
     });
-    c.parentElement.addEventListener("pointerleave", function () { pointer.x = pointer.y = -999; if (still) draw(0); });
+    c.parentElement.addEventListener("pointerdown", function (e) {
+      var r = c.getBoundingClientRect();
+      aim(e.clientX, e.clientY);
+      if (still) return;
+      ripples.push({ x: e.clientX - r.left, y: e.clientY - r.top, t0: performance.now() });
+      if (ripples.length > 6) ripples.shift();
+    });
+
     if ("IntersectionObserver" in window) {
       new IntersectionObserver(function (es) {
         visible = es[0].isIntersecting;
@@ -255,7 +331,7 @@
     darkQuery.addEventListener && darkQuery.addEventListener("change", function () { draw(performance.now()); });
     resize(); draw(0);
     var img = new Image();
-    img.onload = function () { face = img; buildMask(); draw(0); if (!still) start(); };
+    img.onload = function () { loadSource(img); layout(); draw(0); if (!still) start(); };
     img.onerror = function () { if (!still) start(); };
     img.src = "assets/img/face-map.png";
   }

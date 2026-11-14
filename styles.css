@@ -107,7 +107,7 @@ h2 { font: 400 13px/1.4 var(--sans); color: var(--muted); }
 .availability { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14px; color: var(--muted); margin-top: 8px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 20%, transparent); }
 .availability a { margin-left: 6px; }
-.hero-art { position: relative; aspect-ratio: 5 / 4; border-radius: var(--r); background: var(--well); overflow: hidden; }
+.hero-art { position: relative; aspect-ratio: 5 / 4; border-radius: var(--r); background: var(--well); overflow: hidden; cursor: crosshair; touch-action: manipulation; }
 .hero-art canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 
 /* Gallery */
