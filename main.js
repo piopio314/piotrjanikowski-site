@@ -148,35 +148,50 @@
   });
   apply(initialLang());
 
-  // Dot-matrix tile: a slow wave across a dot grid, with the initials picked out in denser dots.
+  // Dot-matrix tile: a halftone portrait over a slowly moving dot field.
+  // The portrait comes from a small grayscale map with the background already cut out.
   function initDots() {
     var c = document.getElementById("dots");
     if (!c || !c.getContext) return;
     var ctx = c.getContext("2d");
     var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    var GAP = 12, w = 0, h = 0, cols = 0, rows = 0, mask = null;
+    var darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    var GAP = 8, w = 0, h = 0, cols = 0, rows = 0;
+    var lum = null, cover = null, face = null;
     var pointer = { x: -999, y: -999 };
     var visible = true, raf = 0;
 
+    function isDark() {
+      var t = document.documentElement.getAttribute("data-theme");
+      return t ? t === "dark" : darkQuery.matches;
+    }
+
     function buildMask() {
+      lum = new Float32Array(cols * rows);
+      cover = new Float32Array(cols * rows);
+      if (!face) return;
       var off = document.createElement("canvas");
       off.width = cols; off.height = rows;
       var o = off.getContext("2d");
-      o.fillStyle = "#000";
-      o.textAlign = "center";
-      o.textBaseline = "middle";
-      o.font = "500 " + Math.round(rows * 0.62) + "px 'Funnel Sans', Arial, sans-serif";
-      o.fillText("PJ", cols / 2, rows / 2 + rows * 0.03);
+      var ph = rows * 1.04;                       // portrait height, bleeding off the bottom
+      var pw = ph * face.width / face.height;
+      o.drawImage(face, (cols - pw) / 2, rows * 0.04, pw, ph);
       var d = o.getImageData(0, 0, cols, rows).data;
-      mask = new Float32Array(cols * rows);
-      for (var i = 0; i < mask.length; i++) mask[i] = d[i * 4 + 3] / 255;
+      for (var y = 0; y < rows; y++) {
+        var fade = Math.min(1, Math.max(0, (rows * 0.98 - y) / (rows * 0.22))); // shoulders dissolve
+        for (var x = 0; x < cols; x++) {
+          var i = y * cols + x;
+          lum[i] = d[i * 4] / 255;
+          cover[i] = (d[i * 4 + 3] / 255) * fade;
+        }
+      }
     }
 
     function resize() {
       var r = c.getBoundingClientRect();
       var dpr = Math.min(window.devicePixelRatio || 1, 2);
       w = r.width; h = r.height;
-      GAP = w < 480 ? 9 : 12;
+      GAP = w < 480 ? 5 : 6;
       c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       cols = Math.floor(w / GAP); rows = Math.floor(h / GAP);
@@ -188,17 +203,26 @@
       var ink = css.getPropertyValue("--ink").trim() || "#1a1a1a";
       var live = css.getPropertyValue("--live").trim() || "#2f9e62";
       ctx.clearRect(0, 0, w, h);
+      var dark = isDark();
+      var maxR = GAP * 0.5;
       var ox = (w - cols * GAP) / 2 + GAP / 2, oy = (h - rows * GAP) / 2 + GAP / 2;
+      ctx.fillStyle = ink;
       for (var y = 0; y < rows; y++) {
         for (var x = 0; x < cols; x++) {
+          var i = y * cols + x;
           var px = ox + x * GAP, py = oy + y * GAP;
-          var m = mask[y * cols + x];
+          var a = cover[i];
           var wave = 0.5 + 0.5 * Math.sin(px * 0.016 + py * 0.01 - t * 0.0005) * Math.cos(py * 0.018 - t * 0.00035);
           var dx = px - pointer.x, dy = py - pointer.y;
-          var near = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / 110);
-          var r = 0.55 + wave * 0.9 + m * 2.1 + near * 1.4;
-          ctx.globalAlpha = Math.min(1, 0.12 + wave * 0.22 + m * 0.62 + near * 0.3);
-          ctx.fillStyle = ink;
+          var near = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / 90);
+          // light dots on dark grow with brightness; dark dots on light grow with shadow
+          var tone = dark ? 0.12 + 0.88 * Math.pow(lum[i], 1.6) : Math.pow(1 - lum[i], 1.15);
+          var rFace = 0.3 + tone * maxR * (dark ? 0.88 : 0.96) + wave * 0.18;
+          var rBg = 0.35 + wave * 0.55;
+          var r = rBg * (1 - a) + rFace * a + near * 0.9;
+          var alpha = (0.08 + wave * 0.16) * (1 - a) + 0.92 * a + near * 0.25;
+          if (r < 0.3) continue;
+          ctx.globalAlpha = Math.min(1, alpha);
           ctx.beginPath(); ctx.arc(px, py, r, 0, 6.2832); ctx.fill();
         }
       }
@@ -228,8 +252,12 @@
       }).observe(c);
     }
     window.addEventListener("resize", function () { resize(); draw(performance.now()); });
-    var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
-    ready.then(function () { resize(); draw(0); if (!still) start(); });
+    darkQuery.addEventListener && darkQuery.addEventListener("change", function () { draw(performance.now()); });
+    resize(); draw(0);
+    var img = new Image();
+    img.onload = function () { face = img; buildMask(); draw(0); if (!still) start(); };
+    img.onerror = function () { if (!still) start(); };
+    img.src = "assets/img/face-map.png";
   }
 
   var btn = document.getElementById("copy-email");
